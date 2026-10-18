@@ -1,0 +1,26 @@
+# dependências
+node_modules/
+
+# ⚠️ NUNCA versionar credenciais/sessão do WhatsApp
+session/
+sessions/
+auth/
+auth_info_baileys/
+baileys_auth/
+.wwebjs_auth/
+.wwebjs_cache/
+*.creds.json
+creds.json
+store.json
+session.zip
+*.sqlite
+*.db
+
+# logs e temporários
+logs/
+*.log
+tmp/
+.env
+
+# backups de sessão (lixeira interna do Session Doctor)
+.trash/

@@ -1,0 +1,41 @@
+# Dependências
+node_modules/
+
+# Estado do usuário (JAMAIS versionado — preservado em atualizações)
+session/
+sessions/
+data/
+logs/
+backups/
+tmp/
+viewer.config.json
+# Backups do config gerados por `npm run config:fix` — contêm dados do usuário
+# (ex.: connection.phoneNumber), portanto jamais versionáveis.
+viewer.config.json.bak
+viewer.config.json.*.bak
+*.bak
+plugins/*
+!plugins/README.md
+
+# ⚠️ Credenciais/sessão do WhatsApp — NUNCA versionar (Viewer e session-doctor)
+auth/
+auth_info_baileys/
+baileys_auth/
+.wwebjs_auth/
+.wwebjs_cache/
+creds.json
+*.creds.json
+store.json
+session.zip
+.trash/
+*.sqlite
+*.db
+
+# Segredos locais
+.env
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
