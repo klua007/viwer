@@ -9,6 +9,11 @@ logs/
 backups/
 tmp/
 viewer.config.json
+# Backups do config gerados por `npm run config:fix` — contêm dados do usuário
+# (ex.: connection.phoneNumber), portanto jamais versionáveis.
+viewer.config.json.bak
+viewer.config.json.*.bak
+*.bak
 plugins/*
 !plugins/README.md
 

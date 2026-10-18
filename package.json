@@ -15,6 +15,7 @@
     "update": "bash update.sh",
     "doctor": "bash doctor.sh",
     "config:check": "node scripts/check-config.js",
+    "config:fix": "node scripts/fix-config.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
