@@ -60,34 +60,119 @@ export function nextRateLimitCooldownMs(previousMs) {
 }
 
 /**
- * Normaliza um número de telefone brasileiro para o formato internacional
- * exigido pelo pareamento (somente dígitos, DDI + DDD + número).
+ * Comprimento total (DDI + número nacional) de um número E.164 válido.
+ * O padrão define no máximo 15 dígitos; na prática o WhatsApp opera com
+ * bem menos, e um mínimo muito baixo deixaria passar lixo digitado.
+ */
+const E164_MIN_LENGTH = 8
+const E164_MAX_LENGTH = 15
+
+/**
+ * Normaliza um número de telefone para o formato internacional exigido pelo
+ * pareamento (somente dígitos, DDI + número nacional).
+ *
+ * Duas políticas, porque só uma delas é verificável localmente:
+ *
+ * - **Brasil (DDI 55)** — validação estrita de DDD/nono dígito. As regras são
+ *   conhecidas e um erro de digitação aqui é detectável sem consultar nada.
+ * - **Demais países** — aceitos com validação de comprimento apenas. Não há
+ *   como verificar localmente o plano de numeração de ~200 países, e tentar
+ *   adivinhar só recusaria números válidos (era o bug: `+57 350 4660693` era
+ *   rejeitado com "use o DDI 55"). Quem impede parear o número errado é a
+ *   **etapa de confirmação**, que exibe o número resolvido antes do socket.
+ *
+ * Ambiguidade assumida e como ela é resolvida: `19912345678` (Campinas, sem
+ * DDI) e `14155552671` (EUA, DDI 1) têm os mesmos 11 dígitos e não há como
+ * distingui-los sem saber o país. O desempate é o **`+`**: quem digita `+`
+ * declarou que o DDI está incluso, então a entrada é tratada como
+ * internacional e nunca recebe `55`. Sem `+`, mantém-se a heurística
+ * pré-existente de número local brasileiro. Errar aqui não é catastrófico —
+ * o número resolvido é exibido e confirmado antes de criar o socket.
+ *
  * @param {string} raw Entrada bruta do usuário/configuração.
  * @returns {{digits: string|null, notes: string[]}}
  */
-export function normalizeBrPhoneNumber(raw) {
+export function normalizePhoneNumber(raw) {
   const notes = []
-  let digits = String(raw ?? '').replace(/\D/g, '')
+  const text = String(raw ?? '')
+  // "+" é o sinal do usuário de que o DDI já está na entrada.
+  const hasExplicitDdi = text.includes('+')
+  let digits = text.replace(/\D/g, '')
   if (!digits) return { digits: null, notes: ['número vazio'] }
 
-  // Prefixo de tronco nacional (0) antes do DDD não faz parte do número.
-  if (/^0+/.test(digits)) {
+  // Prefixo de tronco nacional (0) não faz parte do número internacional.
+  if (digits.startsWith('0')) {
     digits = digits.replace(/^0+/, '')
     notes.push('prefixo 0 inicial removido')
+    if (!digits) return { digits: null, notes: ['número vazio'] }
   }
 
-  if (!digits.startsWith('55')) {
-    if (digits.length === 10 || digits.length === 11) {
-      digits = `55${digits}`
+  // Sem "+", 10–11 dígitos: testa a hipótese "número local brasileiro".
+  // Se as regras BR não a sustentam, cai para internacional em vez de
+  // recusar — senão "+1 (415) 555-2671" digitado sem o "+" morreria como
+  // "celular brasileiro deve começar com 9", que não é o problema do usuário.
+  if (
+    !hasExplicitDdi &&
+    !digits.startsWith('55') &&
+    (digits.length === 10 || digits.length === 11)
+  ) {
+    const asBr = `55${digits}`
+    const br = normalizeBrRules(asBr, [])
+    if (br.digits) {
       notes.push('DDI 55 (Brasil) adicionado automaticamente')
-    } else {
-      // Já veio com DDI de outro país: o pareamento do Viewer é BR.
-      return { digits: null, notes: ['use o DDI 55 + DDD + número'] }
+      return { digits: br.digits, notes: [...notes, ...br.notes] }
+    }
+    notes.push('não é um número brasileiro válido — tratando como internacional')
+  }
+
+  if (digits.length < E164_MIN_LENGTH || digits.length > E164_MAX_LENGTH) {
+    return {
+      digits: null,
+      notes: [
+        `comprimento inválido (${digits.length} dígitos; E.164 aceita de ${E164_MIN_LENGTH} a ${E164_MAX_LENGTH}) — informe o DDI do país`,
+      ],
     }
   }
 
+  // Começa com 55: só pode ser Brasil, não existe outro país com esse DDI.
+  if (digits.startsWith('55')) {
+    if (digits.length === 12 || digits.length === 13) {
+      const br = normalizeBrRules(digits, [])
+      // Preserva o que já foi observado (ex.: "prefixo 0 removido") na recusa.
+      return { digits: br.digits, notes: [...notes, ...br.notes] }
+    }
+    // Sem esta guarda, "+55199123456" (11 dígitos) escaparia das regras BR —
+    // que exigem 12–13 — e cairia no ramo internacional, sendo aceito e
+    // exibido como se 55 fosse o código de outro país.
+    return {
+      digits: null,
+      notes: [
+        ...notes,
+        `DDI 55 (Brasil) com ${digits.length - 2} dígitos nacionais; o esperado são 10 (fixo) ou 11 (celular)`,
+      ],
+    }
+  }
+
+  // Resto do mundo: comprimento já validado acima. Não tentamos adivinhar o
+  // código do país — ele tem de 1 a 3 dígitos e inferir o tamanho sem uma
+  // tabela de planos de numeração produziria rótulo errado (ex.: chamar
+  // "+1 350..." de DDI 13). Registramos apenas o fato verificável.
+  notes.push('número fora do Brasil (DDI diferente de 55)')
+  return { digits, notes }
+}
+
+/**
+ * Regras brasileiras de DDD e nono dígito, aplicadas apenas quando o número
+ * é inequivocamente BR (DDI 55 + 10 ou 11 dígitos nacionais).
+ *
+ * @param {string} digits Número com DDI 55 (12–13 dígitos).
+ * @param {string[]} notes Acumulador de avisos.
+ * @returns {{digits: string|null, notes: string[]}}
+ */
+function normalizeBrRules(digits, notes) {
   const local = digits.slice(2) // DDD + número
   const firstOfNumber = local[2] // primeiro dígito do número (após o DDD)
+
   if (local.length === 11) {
     // Celular brasileiro sempre começa em 9 (nono dígito).
     if (firstOfNumber !== '9') {
@@ -101,26 +186,54 @@ export function normalizeBrPhoneNumber(raw) {
     }
     notes.push('número fixo (8 dígitos) — o WhatsApp normalmente usa celular com 9')
   } else {
-    return { digits: null, notes: ['quantidade de dígitos inesperada'] }
+    return { digits: null, notes: ['quantidade de dígitos inesperada para o Brasil'] }
   }
 
   return { digits, notes }
 }
 
 /**
- * Formata para exibição humana: +55 (19) 91234-5678.
- * @param {string} digits Somente dígitos (12–13).
+ * Alias compatível: o pareamento deixou de ser exclusivo do Brasil, mas o
+ * nome antigo permanece exportado para não quebrar chamadores/testes.
+ * @param {string} raw Entrada bruta.
+ * @returns {{digits: string|null, notes: string[]}}
+ */
+export const normalizeBrPhoneNumber = normalizePhoneNumber
+
+/**
+ * Formata para exibição humana.
+ *
+ * Brasileiros ganham a máscara familiar `+55 (19) 91234-5678`, porque DDI e
+ * DDD têm ambos 2 dígitos e o nono dígito é regra conhecida. Para qualquer
+ * outro país a estrutura é desconhecida (código de país tem 1–3 dígitos, e o
+ * restante varia por plano de numeração), então a exibição é agrupada sem
+ * afirmar fronteiras que não podemos verificar: `+57 350 4660693`.
+ *
+ * Isso importa porque o número formatado é o que o usuário CONFIRMA antes do
+ * pareamento — aplicar a máscara BR a um número estrangeiro exibiria
+ * "+57 (35) 0466-0693", que não corresponde a nenhum número real e tornaria
+ * a confirmação uma armadilha. Agrupar da esquerda também mente: produziria
+ * "+573 504 660 693", engolindo o DDI.
+ *
+ * Fora do Brasil, portanto, os dígitos vão intactos após o "+". Menos bonito,
+ * mas é exatamente a sequência que será enviada ao servidor — e conferir é
+ * justamente o objetivo da etapa.
+ *
+ * @param {string} digits Somente dígitos.
  * @returns {string}
  */
-function formatBrPhone(digits) {
-  const ddi = digits.slice(0, 2)
-  const ddd = digits.slice(2, 4)
-  const local = digits.slice(4)
-  const tail =
-    local.length === 9
-      ? `${local.slice(0, 5)}-${local.slice(5)}`
-      : `${local.slice(0, 4)}-${local.slice(4)}`
-  return `+${ddi} (${ddd}) ${tail}`
+export function formatPhoneForDisplay(digits) {
+  const isBr = digits.startsWith('55') && (digits.length === 12 || digits.length === 13)
+  if (isBr) {
+    const ddd = digits.slice(2, 4)
+    const local = digits.slice(4)
+    const tail =
+      local.length === 9
+        ? `${local.slice(0, 5)}-${local.slice(5)}`
+        : `${local.slice(0, 4)}-${local.slice(4)}`
+    return `+55 (${ddd}) ${tail}`
+  }
+  return `+${digits}`
 }
 
 /**
@@ -260,19 +373,19 @@ export class Connection {
     let phone = String(this.config.get('connection.phoneNumber') || '')
       .replace(/\s+/g, ' ')
       .trim()
-    let normalized = normalizeBrPhoneNumber(phone)
+    let normalized = normalizePhoneNumber(phone)
     if (!normalized.digits) phone = await this.#promptPhoneNumber()
-    normalized = normalizeBrPhoneNumber(phone)
+    normalized = normalizePhoneNumber(phone)
     if (!normalized.digits) {
       throw new Error(
         `número de telefone inválido (${normalized.notes.join('; ')}) — ` +
-          'use DDI+DDD+número (ex.: 5519912345678 ou 19 91234-5678)'
+          'use DDI do país + número (ex.: 5519912345678, 19 91234-5678 ou +57 350 4660693)'
       )
     }
     if (normalized.notes.length) log.info(`número ajustado: ${normalized.notes.join('; ')}`)
 
     this.pairingPhone = normalized.digits
-    this.pairingPhonePretty = formatBrPhone(normalized.digits)
+    this.pairingPhonePretty = formatPhoneForDisplay(normalized.digits)
 
     // O código é vinculado ao número EXATO pelo servidor do WhatsApp; um
     // dígito errado gera "não foi possível conectar o dispositivo". Por isso
