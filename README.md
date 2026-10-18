@@ -103,15 +103,16 @@ desativado automaticamente e os logs fluem normalmente.
 
 ## Comandos
 
-| Comando                 | Descrição                                                                   |
-| ----------------------- | --------------------------------------------------------------------------- |
-| `npm start`             | Executa o Viewer                                                            |
-| `./update.sh`           | Atualização oficial (segura, incremental, com backup e rollback automático) |
-| `./update.sh --dry-run` | Simula a atualização sem aplicar                                            |
-| `./doctor.sh`           | Diagnóstico completo do ambiente (com correções automáticas simples)        |
-| `npm test`              | Testes automatizados (node:test, sem dependências)                          |
-| `npm run lint`          | ESLint                                                                      |
-| `npm run format`        | Prettier                                                                    |
+| Comando                 | Descrição                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `npm start`             | Executa o Viewer                                                                |
+| `./update.sh`           | Atualização oficial (segura, incremental, com backup e rollback automático)     |
+| `./update.sh --dry-run` | Simula a atualização sem aplicar                                                |
+| `./doctor.sh`           | Diagnóstico completo do ambiente (com correções automáticas simples)            |
+| `npm run config:check`  | Lista **qual** chave do `viewer.config.json` está ausente/inválida (só leitura) |
+| `npm test`              | Testes automatizados (node:test, sem dependências)                              |
+| `npm run lint`          | ESLint                                                                          |
+| `npm run format`        | Prettier                                                                        |
 
 ## Configuração
 

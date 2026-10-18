@@ -14,6 +14,7 @@
     "viewer": "node index.js",
     "update": "bash update.sh",
     "doctor": "bash doctor.sh",
+    "config:check": "node scripts/check-config.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
