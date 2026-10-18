@@ -1,0 +1,26 @@
+{
+  "name": "viwer-session-doctor",
+  "version": "1.0.0",
+  "description": "Session Doctor: recria a sess\u00e3o do WhatsApp (Baileys) com QR Code no navegador, diagn\u00f3stico de creds velhas e reset seguro.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.mjs",
+    "dev": "node --watch src/server.mjs",
+    "reset": "node src/cli.mjs reset",
+    "doctor": "node src/cli.mjs doctor",
+    "pair": "node src/cli.mjs pair"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@boruto_vk7/baileys": "^1.0.28-rc14-eduh.0",
+    "express": "^5.2.1",
+    "fflate": "^0.8.2",
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "@hapi/boom": "^9.1.3"
+  }
+}

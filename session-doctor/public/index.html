@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Session Doctor — recriar sessão do WhatsApp</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121a23; --panel2:#0f1620; --line:#1f2c3a;
+    --txt:#e6edf3; --muted:#8b9bab; --green:#25d366; --red:#ff5c5c;
+    --amber:#ffb454; --blue:#4aa8ff; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#0b0f14,#0a0d12 60%);color:var(--txt);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,sans-serif;}
+  a{color:var(--blue)}
+  header{padding:20px 22px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:19px;margin:0;letter-spacing:.2px}
+  header .sub{color:var(--muted);font-size:13px}
+  .badge{font-family:var(--mono);font-size:11px;background:#16212c;border:1px solid var(--line);
+    color:var(--muted);padding:3px 8px;border-radius:999px}
+  main{padding:20px 22px 60px;max-width:1180px;margin:0 auto;display:grid;gap:18px;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  @media(max-width:900px){main{grid-template-columns:minmax(0,1fr)}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 12px}
+  .span2{grid-column:1/-1}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:14px;
+    padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:#16212c}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .s-open .dot{background:var(--green);box-shadow:0 0 10px var(--green)}
+  .s-qr .dot,.s-pairing .dot{background:var(--amber);box-shadow:0 0 10px var(--amber);animation:pulse 1.4s infinite}
+  .s-connecting .dot,.s-starting .dot{background:var(--blue);animation:pulse 1.1s infinite}
+  .s-loggedout .dot,.s-error .dot{background:var(--red);box-shadow:0 0 10px var(--red)}
+  @keyframes pulse{50%{opacity:.35}}
+  .qrbox{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+  .qr{width:270px;height:270px;border-radius:12px;background:#fff;display:grid;place-items:center;overflow:hidden;flex:0 0 auto}
+  .qr img{width:100%;height:100%;display:block}
+  .qr.empty{background:#0e1620;border:2px dashed var(--line);color:var(--muted);font-size:13px;text-align:center;padding:14px}
+  .steps{color:var(--muted);font-size:13.5px;margin:0;padding-left:18px}
+  .steps li{margin-bottom:6px}
+  .big{font-family:var(--mono);font-size:30px;letter-spacing:.18em;color:var(--green);
+    background:#0e1a14;border:1px solid #1d3a29;padding:10px 16px;border-radius:12px;display:inline-block}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  button,input[type=text]{font:inherit;border-radius:10px;border:1px solid var(--line);background:#16212c;
+    color:var(--txt);padding:10px 14px;cursor:pointer}
+  button:hover{border-color:#2d4055;background:#1a2735}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.danger{background:#2a1416;border-color:#5a2426;color:#ffb3b3;font-weight:600}
+  button.danger:hover{background:#3a1a1c;border-color:#7c3134}
+  button.primary{background:#12291d;border-color:#1f5c39;color:#8df0b4;font-weight:600}
+  button.primary:hover{background:#16361f}
+  input[type=text]{min-width:230px;cursor:text;font-family:var(--mono)}
+  label.chk{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13.5px;cursor:pointer}
+  .kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;font-size:13.5px}
+  .kv b{color:var(--muted);font-weight:500;white-space:nowrap}
+  .kv span{font-family:var(--mono);word-break:break-all}
+  pre{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;
+    font-family:var(--mono);font-size:12.4px;line-height:1.55;margin:0;max-height:340px}
+  #log{max-height:300px}
+  .log-line{white-space:pre-wrap;word-break:break-word}
+  .l-error{color:#ff9c9c}.l-warn{color:#ffd79a}.l-success{color:#8df0b4}
+  .l-info{color:#cfe3f5}.l-status{color:#9fb3c8}.l-debug{color:#7f8fa0}
+  .prob{border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:11px 13px;margin-bottom:10px;background:var(--panel2)}
+  .prob.error{border-left-color:var(--red)} .prob.warn{border-left-color:var(--amber)}
+  .prob.ok{border-left-color:var(--green)} .prob.info{border-left-color:var(--blue)}
+  .prob h3{margin:0 0 5px;font-size:14px}
+  .prob p{margin:0 0 6px;color:var(--muted);font-size:13.2px;white-space:pre-wrap}
+  .prob .fix{margin:0;font-size:13.2px;color:#8df0b4}
+  details{border:1px solid var(--line);border-radius:10px;padding:10px 13px;background:var(--panel2);margin-bottom:10px}
+  summary{cursor:pointer;font-weight:600;font-size:14px}
+  .copy{float:right;font-size:12px;padding:4px 9px}
+  .hint{color:var(--muted);font-size:13px;margin:8px 0 0}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🩺 Session Doctor — WhatsApp</h1>
+    <div class="sub">Recria a sessão do zero: apaga as creds mortas, gera QR/código e explica cada erro.</div>
+  </div>
+  <div class="row" style="margin-left:auto">
+    <span class="badge" id="libv">lib: …</span>
+    <span class="badge" id="nodev">node: …</span>
+    <span class="pill" id="pill"><span class="dot"></span><span id="pilltxt">carregando…</span></span>
+  </div>
+</header>
+
+<main>
+  <!-- QR / pareamento -->
+  <section class="card">
+    <h2>1. Parear de novo</h2>
+    <div class="prob error" id="netBanner" style="display:none;margin-bottom:12px">
+      <h3>⛔ Esta máquina não alcança o WhatsApp</h3>
+      <p id="netBannerTxt"></p>
+      <p class="fix">➜ Rode o Session Doctor onde o seu bot vive (sua VPS/PC) — o QR só nasce onde existe rota para web.whatsapp.com:443.</p>
+    </div>
+    <div class="qrbox">
+      <div class="qr empty" id="qr">Sem QR ainda.<br>Clique em <b>Apagar sessão e reconectar</b>.</div>
+      <div style="flex:1;min-width:240px">
+        <ol class="steps">
+          <li>No celular: <b>WhatsApp → Aparelhos conectados → Conectar aparelho</b></li>
+          <li>Escaneie o QR ao lado <i>ou</i> use o código de pareamento abaixo</li>
+          <li>Quando ficar <b>Conectado ✅</b>, a pasta <code id="sdir2">session/</code> já tem as creds novas</li>
+          <li>Reinicie o seu bot apontando pra essa mesma pasta</li>
+        </ol>
+        <div class="row" style="margin-top:14px">
+          <input type="text" id="phone" placeholder="5519999999999 (DDI+DDD+número)" />
+          <button id="btnPair">🔢 Gerar código de pareamento</button>
+        </div>
+        <div id="pairOut" style="margin-top:12px"></div>
+        <p class="hint" id="detail"></p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="danger" id="btnWipeStart">🧨 Apagar sessão e reconectar</button>
+      <button id="btnStart">▶ Conectar (sem apagar)</button>
+      <button id="btnStop">⏹ Parar</button>
+      <button id="btnStopLogout" title="Envia logout pro WhatsApp e depois para">🚪 Parar e deslogar</button>
+      <label class="chk"><input type="checkbox" id="wipeStore" /> apagar também store.json / resíduos</label>
+    </div>
+  </section>
+
+  <!-- sessão atual -->
+  <section class="card">
+    <h2>2. Estado da sessão</h2>
+    <div class="kv" id="kv">
+      <b>pasta</b><span>…</span>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <input type="text" id="waVersion" placeholder="versão do WA Web: 2.3000.1048579041" />
+      <button id="btnVersion">💾 Travar versão</button>
+      <button id="btnLatest" title="Versão confirmada hoje no branch update-version/stable do Baileys">⬆ Usar a mais recente</button>
+      <button id="btnAutoVer">🔄 Voltar ao automático</button>
+    </div>
+    <p class="hint" id="verHint"></p>
+    <div class="toolbar">
+      <button id="btnDoctor">🔎 Rodar diagnóstico</button>
+      <button id="btnNet">🌐 Testar rede (WhatsApp)</button>
+      <button id="btnDownload">⬇ Baixar sessão (.zip)</button>
+      <button id="btnTrash">🗑 Ver lixeira</button>
+    </div>
+    <p class="hint">O "apagar" move a pasta velha para <code>.trash/</code> — dá pra recuperar se você apagou sem querer.</p>
+    <div id="trashOut" style="margin-top:10px"></div>
+  </section>
+
+  <!-- diagnóstico -->
+  <section class="card span2" id="docCard" style="display:none">
+    <h2>3. Diagnóstico</h2>
+    <div id="probs"></div>
+    <details>
+      <summary>Detalhes técnicos (creds, arquivos, outras pastas)</summary>
+      <pre id="docRaw"></pre>
+    </details>
+  </section>
+
+  <!-- como aplicar no bot -->
+  <section class="card span2">
+    <h2>4. Aplicar a correção no SEU bot</h2>
+    <p class="hint" style="margin-top:0">
+      O sintoma "carrega e tenta puxar a sessão anterior apagada" acontece porque as creds continuam no disco:
+      o Baileys vê <code>registered=true</code> e tenta reusar um aparelho que você já removeu no celular → o servidor
+      devolve <code>401 loggedOut</code> e o bot entra em loop. O trecho abaixo apaga sozinho e pede um QR novo.
+    </p>
+    <details open>
+      <summary>Comandos no terminal <button class="copy" data-copy="cmd">copiar</button></summary>
+<pre id="cmd"># 1) PARE todos os processos (2 processos na mesma sessão = erro 440)
+pm2 stop all            # ou: pkill -f node
+
+# 2) Descubra a pasta certa (o erro nº 1 é apagar a pasta errada)
+npm run doctor -- --dir ./session
+
+# 3) Apague com o processo PARADO
+rm -rf ./session        # pasta do useMultiFileAuthState
+rm -f  ./store.json     # só se usar makeInMemoryStore
+
+# 4) Recrie a sessão
+npm run pair                              # QR no terminal
+npm run pair -- --phone 5519999999999     # ou por código de pareamento
+npm start                                 # ou pelo painel web</pre>
+    </details>
+    <details>
+      <summary>Código de reconexão com auto-limpeza <button class="copy" data-copy="code">copiar</button></summary>
+<pre id="code">import { makeWASocket, useMultiFileAuthState, DisconnectReason,
+         fetchLatestBaileysVersion, Browsers } from '@boruto_vk7/baileys'
+import { Boom } from '@hapi/boom'
+import { rm } from 'node:fs/promises'
+
+const SESSION_DIR = './session'        // ⚠️ exatamente a pasta que o seu bot usa
+const PHONE = ''                       // opcional: '5519999999999' p/ código de pareamento
+
+async function start(fresh = false) {
+  // fresh = true → sessão nova do zero (é o que falta no seu caso)
+  if (fresh) await rm(SESSION_DIR, { recursive: true, force: true })
+
+  const { version } = await fetchLatestBaileysVersion()
+  const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
+
+  const sock = makeWASocket({
+    version,
+    auth: state,
+    printQRInTerminal: true,           // QR no terminal
+    browser: Browsers.ubuntu('Meu Bot'),
+    qrTimeout: 45_000
+  })
+
+  sock.ev.on('creds.update', saveCreds)
+
+  sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) =&gt; {
+    if (qr) console.log('🔳 QR gerado — escaneie no celular')
+
+    // pareamento por número (sem QR), se você preencheu PHONE
+    if (connection === 'connecting' &amp;&amp; !sock.authState.creds.registered &amp;&amp; PHONE) {
+      setTimeout(async () =&gt; {
+        console.log('🔢 Código:', await sock.requestPairingCode(PHONE))
+      }, 1800)
+    }
+
+    if (connection === 'close') {
+      const code = new Boom(lastDisconnect?.error)?.output?.statusCode
+
+      // 401 loggedOut / 500 badSession = sessão morta → APAGA e re-pareia
+      if (code === DisconnectReason.loggedOut || code === DisconnectReason.badSession) {
+        console.warn('Sessão inválida (', code, ') — apagando creds e pedindo novo QR')
+        return start(true)
+      }
+      // 440 = outro processo usando a mesma sessão: não adianta reconectar
+      if (code === DisconnectReason.connectionReplaced) {
+        console.error('Outro processo está com essa sessão. Encerre o duplicado.')
+        return
+      }
+      console.warn('Reconectando… código', code)
+      return start(false)
+    }
+
+    if (connection === 'open') console.log('✅ conectado como', sock.user?.id)
+  })
+}
+
+start(false)</pre>
+    </details>
+  </section>
+
+  <!-- logs -->
+  <section class="card span2">
+    <h2>Console</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s)
+let lastQrSeq = -1, lastLogCount = -1, phoneBusy = false
+
+async function api(path, opts) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts })
+  const j = await r.json().catch(() => ({ ok: false, error: 'resposta inválida' }))
+  if (!j.ok) throw new Error(j.error || ('HTTP ' + r.status))
+  return j
+}
+
+function setPill(st) {
+  const p = $('#pill')
+  p.className = 'pill s-' + st
+  $('#pilltxt').textContent = ({
+    idle:'Parado', starting:'Iniciando…', connecting:'Conectando…', qr:'QR esperando scan',
+    pairing:'Aguardando código', open:'Conectado ✅', closed:'Fechada',
+    loggedOut:'Sessão inválida (401)', error:'Erro'
+  })[st] || st
+}
+
+function render(s) {
+  setPill(s.status)
+  paintVersion(s)
+  $('#detail').textContent = s.statusDetail || ''
+  $('#libv').textContent = 'lib: @boruto_vk7/baileys ' + (s.libVersion || '…')
+  $('#nodev').textContent = 'node: ' + (s.waVersion ? 'WA ' + s.waVersion.join('.') : 'aguardando versão')
+
+  const qr = $('#qr')
+  if (s.qr && s.qrSeq !== lastQrSeq) {
+    lastQrSeq = s.qrSeq
+    qr.className = 'qr'
+    qr.innerHTML = '<img alt="QR Code do WhatsApp" src="' + s.qr + '">'
+  } else if (!s.qr && s.status !== 'qr') {
+    if (qr.className !== 'qr empty') {
+      qr.className = 'qr empty'
+      qr.innerHTML = s.status === 'open'
+        ? 'Conectado — QR não é mais necessário.'
+        : 'Sem QR ainda.<br>Clique em <b>Apagar sessão e reconectar</b>.'
+    }
+  }
+
+  $('#pairOut').innerHTML = s.pairingCode
+    ? '<span class="big">' + s.pairingCode + '</span><p class="hint">Celular: WhatsApp → Aparelhos conectados → Conectar com número de telefone</p>'
+    : (s.pendingPhone ? '<p class="hint">Pedindo código para ' + s.pendingPhone + '…</p>' : '')
+
+  const net = s.net
+  if (net) {
+    $('#netBanner').style.display = net.ok ? 'none' : 'block'
+    if (!net.ok) $('#netBannerTxt').textContent = (net.error || 'falha') + ' — DNS: ' + (net.dns ? net.dns.join(', ') : 'n/d')
+  }
+
+  $('#kv').innerHTML = [
+    ['pasta de auth', s.sessionDir],
+    ['status', (s.statusLabel || s.status) + (s.reconnectAttempts ? ' (tentativa ' + s.reconnectAttempts + ')' : '')],
+    ['creds.registered', String(s.registered)],
+    ['conta', s.me?.id ? (s.me.id + (s.me.name ? ' — ' + s.me.name : '')) : '—'],
+    ['versão WA Web', s.waVersion ? (s.waVersion.join('.') + (s.waVersionOverride ? ' (travada por você)' : ' (automática)')) : '—'],
+    ['rede → whatsapp', net ? (net.ok ? '✅ OK (' + net.ms + 'ms, ' + (net.dns || []).join(', ') + ')' : '⛔ ' + (net.error || 'falhou')) : 'não testado'],
+    ['qr expira em', s.qrTimeout ? Math.round(s.qrTimeout / 1000) + 's (renova sozinho)' : '—'],
+    ['auto-limpeza no 401', String(s.autoWipeOnLogout)],
+    ['socket ativo', String(s.running)]
+  ].map(([k, v]) => '<b>' + k + '</b><span>' + String(v).replace(/</g,'&lt;') + '</span>').join('')
+  $('#sdir2').textContent = (s.sessionDir || '').replace(/^.*\//, '') + '/'
+
+  if (s.logs.length !== lastLogCount) {
+    lastLogCount = s.logs.length
+    const box = $('#log')
+    box.innerHTML = s.logs.map(l =>
+      '<div class="log-line l-' + l.level + '">' +
+      new Date(l.ts).toLocaleTimeString('pt-BR') + '  ' + l.msg.replace(/</g,'&lt;') + '</div>'
+    ).join('')
+    box.scrollTop = box.scrollHeight
+  }
+}
+
+async function refresh() {
+  try { render((await api('/api/state')).state) }
+  catch (e) { $('#pilltxt').textContent = 'servidor fora' }
+}
+
+async function act(path, body, btn) {
+  btn.disabled = true
+  try { await api(path, { method: 'POST', body: JSON.stringify(body || {}) }); await refresh() }
+  catch (e) { alert('Erro: ' + e.message) }
+  finally { btn.disabled = false; phoneBusy = false }
+}
+
+$('#btnWipeStart').onclick = (e) => {
+  if (!confirm('Apagar a sessão atual (vai para .trash/) e gerar um QR novo?')) return
+  act('/api/start', { wipe: true, wipeStore: $('#wipeStore').checked }, e.target)
+}
+$('#btnStart').onclick = (e) => act('/api/start', { wipe: false }, e.target)
+$('#btnStop').onclick = (e) => act('/api/stop', {}, e.target)
+$('#btnStopLogout').onclick = (e) => act('/api/stop', { logout: true }, e.target)
+$('#btnPair').onclick = (e) => {
+  const phone = $('#phone').value.replace(/\D/g, '')
+  if (phone.length < 12) return alert('Use DDI+DDD+número, só dígitos. Ex.: 5519999999999')
+  if (!confirm('Apagar a sessão e pedir código de pareamento para ' + phone + '?')) return
+  act('/api/pair', { phone, wipe: true }, e.target)
+}
+function paintVersion(s) {
+  if (!s) return
+  const el = $('#waVersion')
+  if (document.activeElement !== el) el.value = (s.waVersionOverride || s.waVersion || []).join('.') || ''
+  $('#verHint').textContent = 'Mais recente confirmada no upstream (branch update-version/stable, 27/09/2026): ' +
+    (s.knownLatestWaVersion || []).join('.') + ' — o fallback do fork ainda é 2.3000.1043857760 (ago/2026).'
+}
+
+async function setVersion(v, btn) {
+  btn.disabled = true
+  try { await api('/api/version', { method: 'POST', body: JSON.stringify({ version: v }) }); await refresh() }
+  catch (e) { alert('Erro: ' + e.message) }
+  finally { btn.disabled = false }
+}
+
+$('#btnVersion').onclick = (e) => setVersion($('#waVersion').value.trim(), e.target)
+$('#btnLatest').onclick = async (e) => {
+  e.target.disabled = true
+  try {
+    const j = await api('/api/version')
+    await setVersion(j.knownLatest.join('.'), e.target)
+  } finally { e.target.disabled = false }
+}
+$('#btnAutoVer').onclick = (e) => setVersion(null, e.target)
+
+$('#btnNet').onclick = async (e) => {
+  e.target.disabled = true; e.target.textContent = '🌐 testando…'
+  try { const { net } = await api('/api/nettest?force=1'); await refresh(); alert(net.ok ? 'Rede OK: ' + net.ms + 'ms' : 'Rede FALHOU: ' + (net.error || '?')) }
+  catch (err) { alert('Erro: ' + err.message) }
+  finally { e.target.disabled = false; e.target.textContent = '🌐 Testar rede (WhatsApp)' }
+}
+
+$('#btnDoctor').onclick = async () => {
+  try {
+    const { report } = await api('/api/doctor')
+    $('#docCard').style.display = 'block'
+    $('#probs').innerHTML = report.problems.map(p =>
+      '<div class="prob ' + p.severity + '"><h3>' + p.title.replace(/</g,'&lt;') + '</h3>' +
+      '<p>' + p.detail.replace(/</g,'&lt;') + '</p><p class="fix">➜ ' + p.fix.replace(/</g,'&lt;') + '</p></div>'
+    ).join('') || '<p class="hint">Nada suspeito.</p>'
+    $('#docRaw').textContent = JSON.stringify(report, null, 2)
+    $('#docCard').scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } catch (e) { alert('Erro: ' + e.message) }
+}
+$('#btnDownload').onclick = async (e) => {
+  e.target.disabled = true
+  try {
+    const r = await fetch('/api/download')
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}))
+      throw new Error(j.error || ('HTTP ' + r.status))
+    }
+    const blob = await r.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'session.zip'
+    document.body.appendChild(a); a.click(); a.remove()
+    URL.revokeObjectURL(a.href)
+  } catch (err) { alert('Erro ao baixar: ' + err.message) }
+  finally { e.target.disabled = false }
+}
+$('#btnTrash').onclick = async () => {
+  try {
+    const { items } = await api('/api/trash')
+    $('#trashOut').innerHTML = items.length
+      ? items.map(i => '<div class="hint">' + i.name + ' — ' + new Date(i.mtime).toLocaleString('pt-BR') + '</div>').join('')
+        + '<div class="toolbar"><button onclick="fetch(\'/api/trash\',{method:\'DELETE\'}).then(()=>location.reload())">Esvaziar lixeira</button></div>'
+      : '<p class="hint">Lixeira vazia.</p>'
+  } catch (e) { alert('Erro: ' + e.message) }
+}
+
+document.querySelectorAll('.copy').forEach(b => b.onclick = async () => {
+  const el = document.getElementById(b.dataset.copy)
+  await navigator.clipboard.writeText(el.textContent.replace(/&gt;/g,'>').replace(/&lt;/g,'<').replace(/&amp;/g,'&'))
+  b.textContent = 'copiado ✓'; setTimeout(() => b.textContent = 'copiar', 1600)
+})
+
+refresh(); setInterval(refresh, 1500)
+// já testa a rota até o WhatsApp na abertura (é o que mais trava recriação de sessão)
+api('/api/nettest').then(refresh).catch(() => {})
+</script>
+</body>
+</html>
